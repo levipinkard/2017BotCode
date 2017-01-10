@@ -2,6 +2,7 @@ package org.usfirst.frc.team4580.robot;
 
 import com.ctre.CANTalon;
 
+import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotDrive;
@@ -41,6 +42,7 @@ public class Robot extends IterativeRobot {
 	boolean interlock;
 	CANTalon leftMotor;
 	CANTalon rightMotor;
+	Compressor pneumatic;
 	/**
 	 * This function is run when the robot is first started up and should be
 	 * used for any initialization code.
@@ -50,16 +52,19 @@ public class Robot extends IterativeRobot {
 		chooser.addDefault("Default Auto", defaultAuto);
 		chooser.addObject("My Auto", customAuto);
 		SmartDashboard.putData("Auto choices", chooser);
-    	//Sets up Talons to respective CAN IDs
+		//Sets up Talons to respective CAN IDs
 		leftMotor = new CANTalon(0);
 		rightMotor = new CANTalon(1);
 		//Sets left motor to left and right Talons
-    	myRobot = new RobotDrive(leftMotor,rightMotor);
+		myRobot = new RobotDrive(leftMotor,rightMotor);
     	//Sets stick equal to joystick at port #0
     	stick = new Joystick(0);
     	//Sets up variables to allow for slow mode
     	slowBool = false;
     	interlock = true;
+    	//If using pneumatics, this will set up compressor and enable it so that it fills itself
+    	//pneumatic = new Compressor(0);
+    	//pneumatic.setClosedLoopControl(true);
 	}
 
 	/**
@@ -115,7 +120,7 @@ public class Robot extends IterativeRobot {
     	joystickLSY = stick.getRawAxis(1);
     	joystickRSX = stick.getRawAxis(2);
     	joystickRSY = stick.getRawAxis(3);
-    	//Must release button and repress to toggle slowBool, avoids rapid switching
+    	//Must release button and repress to toggle slowBool, avoids rapid switching everytime teleopPeriodic runs
     	if (joystickA && interlock) {
     		slowBool = !slowBool;
     		interlock = false;
