@@ -3,6 +3,8 @@ package org.usfirst.frc.team4580.robot;
 import com.ctre.CANTalon;
 
 import edu.wpi.first.wpilibj.Compressor;
+import edu.wpi.first.wpilibj.CounterBase.EncodingType;
+import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotDrive;
@@ -36,13 +38,16 @@ public class Robot extends IterativeRobot {
 	double joystickLSY;
 	double joystickRSX;
 	double joystickRSY;
-	double joyLeftOut;;
+	double joyLeftOut;
 	double joyRightOut;
 	boolean slowBool;
 	boolean interlock;
 	CANTalon leftMotor;
 	CANTalon rightMotor;
 	Compressor pneumatic;
+	Encoder rightEncode;
+	Encoder leftEncode;
+	Joystick stick2;
 	/**
 	 * This function is run when the robot is first started up and should be
 	 * used for any initialization code.
@@ -53,18 +58,28 @@ public class Robot extends IterativeRobot {
 		chooser.addObject("My Auto", customAuto);
 		SmartDashboard.putData("Auto choices", chooser);
 		//Sets up Talons to respective CAN IDs
-		leftMotor = new CANTalon(0);
-		rightMotor = new CANTalon(1);
+		leftMotor = new CANTalon(2);
+		rightMotor = new CANTalon(4);
+		CANTalon leftBack = new CANTalon(3);
+		CANTalon rightBack = new CANTalon(5);
 		//Sets left motor to left and right Talons
-		myRobot = new RobotDrive(leftMotor,rightMotor);
-    	//Sets stick equal to joystick at port #0
+		myRobot = new RobotDrive(leftMotor,leftBack,rightMotor,rightBack);
+    	//Stick is right logitech flight stick, stick two is left flight stick
     	stick = new Joystick(0);
+    	stick2 = new Joystick(1);
     	//Sets up variables to allow for slow mode
     	slowBool = false;
     	interlock = true;
+    	leftEncode = new Encoder(2, 3, false, EncodingType.k4X);
+    	rightEncode = new Encoder(0, 1, false, EncodingType.k4X);
     	//If using pneumatics, this will set up compressor and enable it so that it fills itself
     	//pneumatic = new Compressor(0);
     	//pneumatic.setClosedLoopControl(true);
+    	rightEncode.setMinRate(.1);
+    	rightEncode.setDistancePerPulse(1);
+    	rightEncode.reset();
+    	
+    	
 	}
 
 	/**
@@ -84,6 +99,7 @@ public class Robot extends IterativeRobot {
 		// autoSelected = SmartDashboard.getString("Auto Selector",
 		// defaultAuto);
 		System.out.println("Auto selected: " + autoSelected);
+
 	}
 
 	/**
@@ -97,7 +113,11 @@ public class Robot extends IterativeRobot {
 			break;
 		case defaultAuto:
 		default:
-			// Put default auto code here
+			while (rightEncode.getDistance() < 5) {
+				myRobot.arcadeDrive(-1, 0);
+				SmartDashboard.putNumber("Auto Right Rotations:", Math.abs(rightEncode.getDistance()));
+				SmartDashboard.putNumber("Auto Left Rotations:", leftEncode.getDistance());
+			}
 			break;
 		}
 	}
@@ -108,8 +128,8 @@ public class Robot extends IterativeRobot {
 	@Override
 	public void teleopPeriodic() {
     	//Assigns various variables to current values of stick
-		joystickA = stick.getRawButton(2);
-        joystickB = stick.getRawButton(3);
+		joystickA = stick.getRawButton(3);
+        joystickB = stick.getRawButton(2);
     	joystickX = stick.getRawButton(1);
     	joystickY = stick.getRawButton(4);
     	joystickLSB = stick.getRawButton(11);
@@ -118,14 +138,14 @@ public class Robot extends IterativeRobot {
     	joystickRB = stick.getRawButton(6);
     	joystickLSX = stick.getRawAxis(0);
     	joystickLSY = stick.getRawAxis(1);
-    	joystickRSX = stick.getRawAxis(2);
-    	joystickRSY = stick.getRawAxis(3);
-    	//Must release button and repress to toggle slowBool, avoids rapid switching everytime teleopPeriodic runs
+    	joystickRSX = stick.getRawAxis(3);
+    	joystickRSY = stick2.getRawAxis(1);
+    	//Must release button and repress to toggle slowBool, avoids rapid switching every time teleopPeriodic runs
     	if (joystickA && interlock) {
     		slowBool = !slowBool;
     		interlock = false;
     	}
-    	//If button is not pressed, reset interlock
+    	//If button is not pressed, reset interlock allowing another press
     	else if (!joystickA) {
     		interlock = true;
     	}
@@ -141,6 +161,8 @@ public class Robot extends IterativeRobot {
     	}
     	// Sets tank drive equal to joystick variables
     	myRobot.tankDrive(joyLeftOut, joyRightOut, true);
+    	SmartDashboard.putNumber("Right Rotations", rightEncode.getDistance());
+    	SmartDashboard.putNumber("Left Rotations", leftEncode.getDistance());
 	}
 
 	/**
