@@ -8,6 +8,7 @@ import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotDrive;
+import edu.wpi.first.wpilibj.networktables.NetworkTable;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
@@ -25,6 +26,7 @@ public class Robot extends IterativeRobot {
 	SendableChooser<String> chooser = new SendableChooser<>();
 	RobotDrive myRobot;
 	Joystick stick;
+	double wheelSize;
 	int autoLoopCounter;
     boolean joystickA;
 	boolean joystickB;
@@ -48,6 +50,10 @@ public class Robot extends IterativeRobot {
 	Encoder rightEncode;
 	Encoder leftEncode;
 	Joystick stick2;
+	double encodeDistance;
+	double autoGoDistance;
+	final double pi = 3.14159265359;
+	NetworkTable table;
 	/**
 	 * This function is run when the robot is first started up and should be
 	 * used for any initialization code.
@@ -65,8 +71,8 @@ public class Robot extends IterativeRobot {
 		//Sets left motor to left and right Talons
 		myRobot = new RobotDrive(leftMotor,leftBack,rightMotor,rightBack);
     	//Stick is right logitech flight stick, stick two is left flight stick
-    	stick = new Joystick(0);
-    	stick2 = new Joystick(1);
+    	stick = new Joystick(1);
+    	stick2 = new Joystick(0);
     	//Sets up variables to allow for slow mode
     	slowBool = false;
     	interlock = true;
@@ -76,7 +82,6 @@ public class Robot extends IterativeRobot {
     	//pneumatic = new Compressor(0);
     	//pneumatic.setClosedLoopControl(true);
     	rightEncode.setMinRate(.1);
-    	rightEncode.setDistancePerPulse(1);
     	rightEncode.reset();
     	
     	
@@ -93,31 +98,38 @@ public class Robot extends IterativeRobot {
 	 * switch structure below with additional strings. If using the
 	 * SendableChooser make sure to add them to the chooser code above as well.
 	 */
+	@SuppressWarnings("deprecation")
 	@Override
 	public void autonomousInit() {
 		autoSelected = chooser.getSelected();
 		// autoSelected = SmartDashboard.getString("Auto Selector",
 		// defaultAuto);
 		System.out.println("Auto selected: " + autoSelected);
-
+		rightEncode.reset();
+		encodeDistance = 7.4 * pi / 270;
+		rightEncode.setDistancePerPulse(encodeDistance);
 	}
 
 	/**
 	 * This function is called periodically during autonomous
 	 */
+	@SuppressWarnings("deprecation")
 	@Override
 	public void autonomousPeriodic() {
+    	wheelSize = SmartDashboard.getNumber("Wheel", 8);
+    	autoGoDistance = SmartDashboard.getNumber("Distance", 30);
 		switch (autoSelected) {
 		case customAuto:
 			// Put custom auto code here
 			break;
 		case defaultAuto:
 		default:
-			while (rightEncode.getDistance() < 5) {
-				myRobot.arcadeDrive(-1, 0);
+			while (Math.abs(rightEncode.getDistance()) <= 150) {
+				myRobot.arcadeDrive(-.6, 0);
 				SmartDashboard.putNumber("Auto Right Rotations:", Math.abs(rightEncode.getDistance()));
 				SmartDashboard.putNumber("Auto Left Rotations:", leftEncode.getDistance());
 			}
+			//myRobot.arcadeDrive(0,180);
 			break;
 		}
 	}
@@ -164,7 +176,6 @@ public class Robot extends IterativeRobot {
     	SmartDashboard.putNumber("Right Rotations", rightEncode.getDistance());
     	SmartDashboard.putNumber("Left Rotations", leftEncode.getDistance());
 	}
-
 	/**
 	 * This function is called periodically during test mode
 	 */
