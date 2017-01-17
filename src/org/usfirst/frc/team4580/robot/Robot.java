@@ -1,13 +1,21 @@
 package org.usfirst.frc.team4580.robot;
 
 import com.ctre.CANTalon;
+import com.kauailabs.navx.frc.AHRS;
 
+import edu.wpi.first.wpilibj.AnalogOutput;
+import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.CounterBase.EncodingType;
 import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.PIDController;
 import edu.wpi.first.wpilibj.RobotDrive;
+import edu.wpi.first.wpilibj.SPI;
+import edu.wpi.first.wpilibj.SerialPort;
+import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.livewindow.LiveWindow;
 import edu.wpi.first.wpilibj.networktables.NetworkTable;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -27,8 +35,10 @@ public class Robot extends IterativeRobot {
 	RobotDrive myRobot;
 	Joystick stick;
 	double wheelSize;
+	SerialPort arduino;
 	int autoLoopCounter;
     boolean joystickA;
+    AnalogOutput anOut;
 	boolean joystickB;
 	boolean joystickX;
 	boolean joystickY;
@@ -42,18 +52,27 @@ public class Robot extends IterativeRobot {
 	double joystickRSY;
 	double joyLeftOut;
 	double joyRightOut;
+	CameraServer camera;
 	boolean slowBool;
 	boolean interlock;
-	CANTalon leftMotor;
-	CANTalon rightMotor;
-	Compressor pneumatic;
+	byte testByte[];
+	boolean interlock2;
+	//Declares the Talon SRX motor controllers
+	CANTalon leftFront;
+	CANTalon rightFront;
+	CANTalon leftRear;
+	CANTalon rightRear;
+	//Compressor pneumatic;
 	Encoder rightEncode;
 	Encoder leftEncode;
+	//Second joystick for flight sticks
 	Joystick stick2;
+	//Variable to hold distance per pulse
 	double encodeDistance;
+	//Distance to travel, set by dashboard
 	double autoGoDistance;
-	final double pi = 3.14159265359;
-	NetworkTable table;
+	PIDController turnController;
+	AHRS ahrs;
 	/**
 	 * This function is run when the robot is first started up and should be
 	 * used for any initialization code.
@@ -64,27 +83,37 @@ public class Robot extends IterativeRobot {
 		chooser.addObject("My Auto", customAuto);
 		SmartDashboard.putData("Auto choices", chooser);
 		//Sets up Talons to respective CAN IDs
-		leftMotor = new CANTalon(2);
-		rightMotor = new CANTalon(4);
-		CANTalon leftBack = new CANTalon(3);
-		CANTalon rightBack = new CANTalon(5);
+		camera = CameraServer.getInstance();
+		camera.setSize(50);
+		camera.addServer("Test");
+		camera.addCamera("cam0");
+		
+		leftFront = new CANTalon(2);
+		rightFront = new CANTalon(4);
+		leftRear = new CANTalon(3);
+		rightRear = new CANTalon(5);
 		//Sets left motor to left and right Talons
-		myRobot = new RobotDrive(leftMotor,leftBack,rightMotor,rightBack);
+		myRobot = new RobotDrive(leftFront,leftRear,rightFront,rightRear);
     	//Stick is right logitech flight stick, stick two is left flight stick
     	stick = new Joystick(1);
     	stick2 = new Joystick(0);
     	//Sets up variables to allow for slow mode
     	slowBool = false;
     	interlock = true;
+    	interlock2 = true;
     	leftEncode = new Encoder(2, 3, false, EncodingType.k4X);
     	rightEncode = new Encoder(0, 1, false, EncodingType.k4X);
     	//If using pneumatics, this will set up compressor and enable it so that it fills itself
     	//pneumatic = new Compressor(0);
     	//pneumatic.setClosedLoopControl(true);
-    	rightEncode.setMinRate(.1);
     	rightEncode.reset();
-    	
-    	
+    	arduino = new SerialPort(9600, SerialPort.Port.kUSB);
+    	arduino.writeString("test");
+        /* Communicate w/navX-MXP via the MXP SPI Bus.                                     */
+        /* Alternatively:  I2C.Port.kMXP, SerialPort.Port.kMXP or SerialPort.Port.kUSB     */
+        /* See http://navx-mxp.kauailabs.com/guidance/selecting-an-interface/ for details. */
+        ahrs = new AHRS (SPI.Port.kMXP); 
+    	testByte = new byte[5];
 	}
 
 	/**
@@ -98,7 +127,6 @@ public class Robot extends IterativeRobot {
 	 * switch structure below with additional strings. If using the
 	 * SendableChooser make sure to add them to the chooser code above as well.
 	 */
-	@SuppressWarnings("deprecation")
 	@Override
 	public void autonomousInit() {
 		autoSelected = chooser.getSelected();
@@ -106,30 +134,54 @@ public class Robot extends IterativeRobot {
 		// defaultAuto);
 		System.out.println("Auto selected: " + autoSelected);
 		rightEncode.reset();
-		encodeDistance = 7.4 * pi / 270;
+    	//Grabs wheelSize and autoGoDistance from the dashboard (hopefully)
+		wheelSize = SmartDashboard.getNumber("Wheel", 8);
+    	autoGoDistance = SmartDashboard.getNumber("Distance", 27);
+		/*
+		 * Calculates the distance per pulse by taking the wheel diameter * pi
+    	 * to get the circumference and dividing that by 
+    	 * the pulses per revolution
+    	 */
+    	encodeDistance = 7.4 * Math.PI / 270;
 		rightEncode.setDistancePerPulse(encodeDistance);
+		rightEncode.setMinRate(.5);
 	}
 
 	/**
 	 * This function is called periodically during autonomous
 	 */
-	@SuppressWarnings("deprecation")
 	@Override
 	public void autonomousPeriodic() {
-    	wheelSize = SmartDashboard.getNumber("Wheel", 8);
-    	autoGoDistance = SmartDashboard.getNumber("Distance", 30);
 		switch (autoSelected) {
 		case customAuto:
 			// Put custom auto code here
 			break;
 		case defaultAuto:
 		default:
-			while (Math.abs(rightEncode.getDistance()) <= 150) {
-				myRobot.arcadeDrive(-.6, 0);
-				SmartDashboard.putNumber("Auto Right Rotations:", Math.abs(rightEncode.getDistance()));
-				SmartDashboard.putNumber("Auto Left Rotations:", leftEncode.getDistance());
+			//Drives forward until the robot goes the distance set by autoGoDistance
+			/*while (Math.abs(rightEncode.getDistance()) <= 27) {
+				wheelSize = SmartDashboard.getNumber("Wheel", 8);
+		    	autoGoDistance = SmartDashboard.getNumber("Distance", 27);
+				/*
+				 * Calculates the distance per pulse by taking the wheel diameter * pi
+		    	 * to get the circumference and dividing that by 
+		    	 * the pulses per revolution
+		    	 *
+		    	encodeDistance = 7.4 * Math.PI / 270;
+				rightEncode.setDistancePerPulse(encodeDistance);
+				myRobot.arcadeDrive(-1, 0);
+				//Adds encoder values to dashboard during autonomous mode
+				SmartDashboard.putNumber("Auto Right Distance:", Math.abs(rightEncode.getDistance()));
+				SmartDashboard.putNumber("Auto Left Distance:", Math.abs(leftEncode.getDistance()));
+			} */
+			double currentAngle = ahrs.getAngle();
+			testByte[0] = 1;
+			ahrs.reset();
+			while (ahrs.getAngle() <  180) {
+				SmartDashboard.putNumber("Z axis:", ahrs.getAngle());
+				myRobot.tankDrive(.6,-.6);
 			}
-			//myRobot.arcadeDrive(0,180);
+			Timer.delay(5);
 			break;
 		}
 	}
@@ -138,12 +190,12 @@ public class Robot extends IterativeRobot {
 	 * This function is called periodically during operator control
 	 */
 	@Override
-	public void teleopPeriodic() {
+	public void teleopPeriodic() throws IllegalMonitorStateException {
     	//Assigns various variables to current values of stick
 		joystickA = stick.getRawButton(3);
         joystickB = stick.getRawButton(2);
-    	joystickX = stick.getRawButton(1);
-    	joystickY = stick.getRawButton(4);
+    	joystickX = stick.getRawButton(4);
+    	joystickY = stick.getRawButton(1);
     	joystickLSB = stick.getRawButton(11);
     	joystickRSB = stick.getRawButton(12);
     	joystickLB = stick.getRawButton(5);
@@ -161,6 +213,12 @@ public class Robot extends IterativeRobot {
     	else if (!joystickA) {
     		interlock = true;
     	}
+    	if (joystickX && interlock2) {
+    		ahrs.reset();
+    	}
+    	else if (!joystickX) {
+    		interlock2 = true;
+    	}
     	//Robot drive code
     	if (slowBool) {
     		//If slowBool (activated by A) is true, then drive speed is halved
@@ -173,8 +231,19 @@ public class Robot extends IterativeRobot {
     	}
     	// Sets tank drive equal to joystick variables
     	myRobot.tankDrive(joyLeftOut, joyRightOut, true);
-    	SmartDashboard.putNumber("Right Rotations", rightEncode.getDistance());
-    	SmartDashboard.putNumber("Left Rotations", leftEncode.getDistance());
+    	//Adds encoding distances to dashboard
+    	SmartDashboard.putNumber("TeleOp Right Distance:", rightEncode.getDistance());
+    	SmartDashboard.putNumber("TeleOp Left Distance:", leftEncode.getDistance());
+    	SmartDashboard.putNumber("Z axis:", ahrs.getAngle());
+
+    	testByte[0] = 1;
+    	if (joystickX) {
+    		arduino.write(testByte, 5);
+    	}
+    	if (joystickA) {
+    		testByte[0] = 2;
+    		arduino.write(testByte, 5);
+    	}
 	}
 	/**
 	 * This function is called periodically during test mode
