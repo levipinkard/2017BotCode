@@ -3,6 +3,7 @@ package org.usfirst.frc.team4580.robot;
 import com.ctre.CANTalon;
 import com.kauailabs.navx.frc.AHRS;
 
+import edu.wpi.cscore.CameraServerJNI;
 import edu.wpi.first.wpilibj.AnalogOutput;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.Compressor;
@@ -73,21 +74,17 @@ public class Robot extends IterativeRobot {
 	double autoGoDistance;
 	PIDController turnController;
 	AHRS ahrs;
+	double encoderCompensate;
 	/**
 	 * This function is run when the robot is first started up and should be
 	 * used for any initialization code.
 	 */
 	@Override
 	public void robotInit() {
-		chooser.addDefault("Default Auto", defaultAuto);
-		chooser.addObject("My Auto", customAuto);
-		SmartDashboard.putData("Auto choices", chooser);
-		//Sets up Talons to respective CAN IDs
-		camera = CameraServer.getInstance();
-		camera.setSize(50);
-		camera.addServer("Test");
-		camera.addCamera("cam0");
-		
+		//chooser.addDefault("Default Auto", defaultAuto);
+		//chooser.addObject("My Auto", customAuto);
+		//SmartDashboard.putData("Auto choices", chooser);
+		//Sets up Talons to respective CAN IDs	
 		leftFront = new CANTalon(2);
 		rightFront = new CANTalon(4);
 		leftRear = new CANTalon(3);
@@ -106,14 +103,17 @@ public class Robot extends IterativeRobot {
     	//If using pneumatics, this will set up compressor and enable it so that it fills itself
     	//pneumatic = new Compressor(0);
     	//pneumatic.setClosedLoopControl(true);
-    	rightEncode.reset();
     	arduino = new SerialPort(9600, SerialPort.Port.kUSB);
-    	arduino.writeString("test");
+    	//arduino.writeString("test");
         /* Communicate w/navX-MXP via the MXP SPI Bus.                                     */
         /* Alternatively:  I2C.Port.kMXP, SerialPort.Port.kMXP or SerialPort.Port.kUSB     */
         /* See http://navx-mxp.kauailabs.com/guidance/selecting-an-interface/ for details. */
         ahrs = new AHRS (SPI.Port.kMXP); 
-    	testByte = new byte[5];
+    	//testByte = new byte[5];
+        encoderCompensate = 0.94224842556;
+        CameraServer.getInstance();
+        camera.startAutomaticCapture("cam0", "cam0");
+        
 	}
 
 	/**
@@ -129,14 +129,14 @@ public class Robot extends IterativeRobot {
 	 */
 	@Override
 	public void autonomousInit() {
-		autoSelected = chooser.getSelected();
-		// autoSelected = SmartDashboard.getString("Auto Selector",
-		// defaultAuto);
-		System.out.println("Auto selected: " + autoSelected);
+		//autoSelected = chooser.getSelected();
+		//autoSelected = SmartDashboard.getString("Auto Selector", defaultAuto);
+		//System.out.println("Auto selected: " + autoSelected);
 		rightEncode.reset();
-    	//Grabs wheelSize and autoGoDistance from the dashboard (hopefully)
-		wheelSize = SmartDashboard.getNumber("Wheel", 8);
-    	autoGoDistance = SmartDashboard.getNumber("Distance", 27);
+    	leftEncode.reset();
+		//Grabs wheelSize and autoGoDistance from the dashboard (hopefully)
+		//wheelSize = SmartDashboard.getNumber("Wheel", 8);
+    	//autoGoDistance = SmartDashboard.getNumber("Distance", 27);
 		/*
 		 * Calculates the distance per pulse by taking the wheel diameter * pi
     	 * to get the circumference and dividing that by 
@@ -144,7 +144,35 @@ public class Robot extends IterativeRobot {
     	 */
     	encodeDistance = 7.4 * Math.PI / 270;
 		rightEncode.setDistancePerPulse(encodeDistance);
+		leftEncode.setDistancePerPulse(encodeDistance);
 		rightEncode.setMinRate(.5);
+		leftEncode.setMinRate(.5);
+		//Drives forward until the robot goes the distance set by autoGoDistance
+		while (Math.abs(rightEncode.getDistance()) <= 147) {
+			//wheelSize = SmartDashboard.getNumber("Wheel", 8);
+	    	//autoGoDistance = SmartDashboard.getNumber("Distance", 27);
+			/*
+			 * Calculates the distance per pulse by taking the wheel diameter * pi
+	    	 * to get the circumference and dividing that by 
+	    	 * the pulses per revolution
+	    	 * */
+
+			
+			myRobot.tankDrive(-1 ,-1 * encoderCompensate);
+			//Adds encoder values to dashboard during autonomous mode
+			//SmartDashboard.putNumber("Auto Right Distance:", Math.abs(rightEncode.getDistance()));
+			//SmartDashboard.putNumber("Auto Left Distance:", Math.abs(leftEncode.getDistance()));
+		} 
+		ahrs.reset();
+		//double navAngle;
+		//navAngle = Math.abs(ahrs.getAngle());
+		//while (navAngle <  345) {
+		//	navAngle = Math.abs(ahrs.getAngle());
+		//	SmartDashboard.putNumber("Z axis:", ahrs.getAngle());
+		//	myRobot.tankDrive(.6 * encoderCompensate, -.6);
+		//}
+			SmartDashboard.putNumber("Auto Right Rotations:", Math.abs(rightEncode.getRate()));
+			SmartDashboard.putNumber("Auto Left Rotations:", Math.abs(leftEncode.getRate()));
 	}
 
 	/**
@@ -152,38 +180,14 @@ public class Robot extends IterativeRobot {
 	 */
 	@Override
 	public void autonomousPeriodic() {
-		switch (autoSelected) {
+		/*switch (autoSelected) {
 		case customAuto:
 			// Put custom auto code here
 			break;
 		case defaultAuto:
 		default:
-			//Drives forward until the robot goes the distance set by autoGoDistance
-			/*while (Math.abs(rightEncode.getDistance()) <= 27) {
-				wheelSize = SmartDashboard.getNumber("Wheel", 8);
-		    	autoGoDistance = SmartDashboard.getNumber("Distance", 27);
-				/*
-				 * Calculates the distance per pulse by taking the wheel diameter * pi
-		    	 * to get the circumference and dividing that by 
-		    	 * the pulses per revolution
-		    	 *
-		    	encodeDistance = 7.4 * Math.PI / 270;
-				rightEncode.setDistancePerPulse(encodeDistance);
-				myRobot.arcadeDrive(-1, 0);
-				//Adds encoder values to dashboard during autonomous mode
-				SmartDashboard.putNumber("Auto Right Distance:", Math.abs(rightEncode.getDistance()));
-				SmartDashboard.putNumber("Auto Left Distance:", Math.abs(leftEncode.getDistance()));
-			} */
-			double currentAngle = ahrs.getAngle();
-			testByte[0] = 1;
-			ahrs.reset();
-			while (ahrs.getAngle() <  180) {
-				SmartDashboard.putNumber("Z axis:", ahrs.getAngle());
-				myRobot.tankDrive(.6,-.6);
-			}
-			Timer.delay(5);
 			break;
-		}
+		} */
 	}
 
 	/**
@@ -208,6 +212,9 @@ public class Robot extends IterativeRobot {
     	if (joystickA && interlock) {
     		slowBool = !slowBool;
     		interlock = false;
+    		arduino.writeString("on");
+    		Timer.delay(.02);
+    		arduino.flush();
     	}
     	//If button is not pressed, reset interlock allowing another press
     	else if (!joystickA) {
@@ -236,14 +243,6 @@ public class Robot extends IterativeRobot {
     	SmartDashboard.putNumber("TeleOp Left Distance:", leftEncode.getDistance());
     	SmartDashboard.putNumber("Z axis:", ahrs.getAngle());
 
-    	testByte[0] = 1;
-    	if (joystickX) {
-    		arduino.write(testByte, 5);
-    	}
-    	if (joystickA) {
-    		testByte[0] = 2;
-    		arduino.write(testByte, 5);
-    	}
 	}
 	/**
 	 * This function is called periodically during test mode
